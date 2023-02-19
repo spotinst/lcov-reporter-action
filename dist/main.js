@@ -22965,44 +22965,23 @@ function ranges(linenos) {
 	return res
 }
 
-function comment(lcov, options) {
-	return fragment(
-		options.title ? h2(options.title) : "",
-		options.base
-			? `Coverage after merging ${b(options.head)} into ${b(
-					options.base,
-			  )} will be`
-			: `Coverage for this commit`,
-		table(tbody(tr(th(percentage(lcov).toFixed(2), "%")))),
-		"\n\n",
-		details(
-			summary(
-				options.shouldFilterChangedFiles
-					? "Coverage Report for Changed Files"
-					: "Coverage Report",
-			),
-			tabulate(lcov, options),
-		),
-	)
-}
-
 function diff(lcov, before, options) {
-	if (!before) {
+	if(!before) {
 		return comment(lcov, options)
 	}
 
 	const pbefore = percentage(before);
-	const pafter = percentage(lcov);
-	const pdiff = pafter - pbefore;
-	const plus = pdiff > 0 ? "+" : "";
-	const arrow = pdiff === 0 ? "" : pdiff < 0 ? "▾" : "▴";
+	const pafter  = percentage(lcov);
+	const pdiff   = pafter - pbefore;
+	const plus    = pdiff > 0 ? "+" : "";
+	const arrow   = pdiff === 0 ? "" : pdiff < 0 ? "▾" : "▴";
 
-	return fragment(
+	let comment = fragment(
 		options.title ? h2(options.title) : "",
 		options.base
 			? `Coverage after merging ${b(options.head)} into ${b(
-					options.base,
-			  )} will be`
+				options.base,
+			)} will be`
 			: `Coverage for this commit`,
 		table(
 			tbody(
@@ -23020,8 +22999,15 @@ function diff(lcov, before, options) {
 					: "Coverage Report",
 			),
 			tabulate(lcov, options),
-		),
-	)
+		));
+
+	return {
+		coverage_data: {
+			diff:  pdiff,
+			after: pafter,
+		},
+		comment,
+	};
 }
 
 // Get list of changed files
@@ -23097,74 +23083,83 @@ async function getExistingComments(github, options, context) {
 const MAX_COMMENT_CHARS = 65536;
 
 async function main$1() {
-	const token = core$1.getInput("github-token");
-	const githubClient = new github_2(token);
-	const workingDir = core$1.getInput('working-directory') || './';	
-	const lcovFile = path.join(workingDir, core$1.getInput("lcov-file") || "./coverage/lcov.info");
-	const baseFile = core$1.getInput("lcov-base");
+	const token                    = core$1.getInput("github-token");
+	const githubClient             = new github_2(token);
+	const workingDir               = core$1.getInput("working-directory") || "./";
+	const lcovFile                 = path.join(workingDir, core$1.getInput("lcov-file") || "./coverage/lcov.info");
+	const baseFile                 = core$1.getInput("lcov-base");
 	const shouldFilterChangedFiles =
-		core$1.getInput("filter-changed-files").toLowerCase() === "true";
-	const shouldDeleteOldComments =
-		core$1.getInput("delete-old-comments").toLowerCase() === "true";
-	const title = core$1.getInput("title");
+					core$1.getInput("filter-changed-files").toLowerCase() === "true";
+	const shouldDeleteOldComments  =
+					core$1.getInput("delete-old-comments").toLowerCase() === "true";
+	const title                    = core$1.getInput("title");
 
 	const raw = await fs.promises.readFile(lcovFile, "utf-8").catch(err => null);
-	if (!raw) {
+	if(!raw) {
 		console.log(`No coverage report found at '${lcovFile}', exiting...`);
 		return
 	}
 
 	const baseRaw =
-		baseFile && (await fs.promises.readFile(baseFile, "utf-8").catch(err => null));
-	if (baseFile && !baseRaw) {
+					baseFile && (await fs.promises.readFile(baseFile, "utf-8").catch(err => null));
+	if(baseFile && !baseRaw) {
 		console.log(`No coverage report found at '${baseFile}', ignoring...`);
 	}
 
 	const options = {
 		repository: github_1.payload.repository.full_name,
-		prefix: normalisePath(`${process.env.GITHUB_WORKSPACE}/`),
+		prefix:     normalisePath(`${process.env.GITHUB_WORKSPACE}/`),
 		workingDir,
 	};
 
-	if (github_1.eventName === "pull_request") {
-		options.commit = github_1.payload.pull_request.head.sha;
+	if(github_1.eventName === "pull_request") {
+		options.commit     = github_1.payload.pull_request.head.sha;
 		options.baseCommit = github_1.payload.pull_request.base.sha;
-		options.head = github_1.payload.pull_request.head.ref;
-		options.base = github_1.payload.pull_request.base.ref;
-	} else if (github_1.eventName === "push") {
-		options.commit = github_1.payload.after;
+		options.head       = github_1.payload.pull_request.head.ref;
+		options.base       = github_1.payload.pull_request.base.ref;
+	}
+	else if(github_1.eventName === "push") {
+		options.commit     = github_1.payload.after;
 		options.baseCommit = github_1.payload.before;
-		options.head = github_1.ref;
+		options.head       = github_1.ref;
 	}
 
 	options.shouldFilterChangedFiles = shouldFilterChangedFiles;
-	options.title = title;
+	options.title                    = title;
 
-	if (shouldFilterChangedFiles) {
+	if(shouldFilterChangedFiles) {
 		options.changedFiles = await getChangedFiles(githubClient, options, github_1);
 	}
 
-	const lcov = await parse$2(raw);
+	const lcov     = await parse$2(raw);
 	const baselcov = baseRaw && (await parse$2(baseRaw));
-	const body = diff(lcov, baselcov, options).substring(0, MAX_COMMENT_CHARS);
+	const {
+					coverage_data,
+					comment: body,
+				}        = diff(lcov, baselcov, options).substring(0, MAX_COMMENT_CHARS);
 
-	if (shouldDeleteOldComments) {
+	core$1.info(`coverage data: ${JSON.stringify(coverage_data, null, 2)}`);
+	core$1.setOutput("diff_coverage", coverage_data.diff);
+	core$1.setOutput("after_coverage", coverage_data.after);
+
+	if(shouldDeleteOldComments) {
 		await deleteOldComments(githubClient, options, github_1);
 	}
 
-	if (github_1.eventName === "pull_request") {
+	if(github_1.eventName === "pull_request") {
 		await githubClient.issues.createComment({
-			repo: github_1.repo.repo,
-			owner: github_1.repo.owner,
+			repo:         github_1.repo.repo,
+			owner:        github_1.repo.owner,
 			issue_number: github_1.payload.pull_request.number,
-			body: body,
+			body:         body,
 		});
-	} else if (github_1.eventName === "push") {
+	}
+	else if(github_1.eventName === "push") {
 		await githubClient.repos.createCommitComment({
-			repo: github_1.repo.repo,
-			owner: github_1.repo.owner,
+			repo:       github_1.repo.repo,
+			owner:      github_1.repo.owner,
 			commit_sha: options.commit,
-			body: body,
+			body:       body,
 		});
 	}
 }
