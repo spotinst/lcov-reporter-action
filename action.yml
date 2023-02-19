@@ -24,12 +24,17 @@ inputs:
     required: false
     default: false
   working-directory:
-    description: Set working directory if project is not in root folder  
+    description: Set working directory if project is not in root folder
     required: false
     default: "./"
   title:
     description: Title to add to the comment
     required: false
+outputs:
+  diff_coverage:
+    description: The coverage difference between base and feature reports
+  after_coverage:
+    description: The coverage after merging the feature branch
 runs:
   using: node12
   main: dist/main.js
