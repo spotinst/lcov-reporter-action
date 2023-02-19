@@ -67,7 +67,7 @@ async function main() {
 					comment: body,
 				}        = diff(lcov, baselcov, options).substring(0, MAX_COMMENT_CHARS)
 
-	console.log("coverage data: ", coverage_data)
+	core.info(`coverage data: ${JSON.stringify(coverage_data, null, 2)}`);
 	core.setOutput("diff_coverage", coverage_data.diff)
 	core.setOutput("after_coverage", coverage_data.after)
 
