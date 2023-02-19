@@ -64,10 +64,12 @@ async function main() {
 	const baselcov = baseRaw && (await parse(baseRaw))
 	const {
 					coverage_data,
-					comment: body,
-				}        = diff(lcov, baselcov, options).substring(0, MAX_COMMENT_CHARS)
+					comment,
+				}        = diff(lcov, baselcov, options)
 
-	core.info(`coverage data: ${JSON.stringify(coverage_data, null, 2)}`);
+	const body = comment.substring(0, MAX_COMMENT_CHARS);
+
+	core.info(`coverage data: ${JSON.stringify(coverage_data, null, 2)}`)
 	core.setOutput("diff_coverage", coverage_data.diff)
 	core.setOutput("after_coverage", coverage_data.after)
 

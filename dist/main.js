@@ -23135,8 +23135,10 @@ async function main$1() {
 	const baselcov = baseRaw && (await parse$2(baseRaw));
 	const {
 					coverage_data,
-					comment: body,
-				}        = diff(lcov, baselcov, options).substring(0, MAX_COMMENT_CHARS);
+					comment,
+				}        = diff(lcov, baselcov, options);
+
+	const body = comment.substring(0, MAX_COMMENT_CHARS);
 
 	core$1.info(`coverage data: ${JSON.stringify(coverage_data, null, 2)}`);
 	core$1.setOutput("diff_coverage", coverage_data.diff);
